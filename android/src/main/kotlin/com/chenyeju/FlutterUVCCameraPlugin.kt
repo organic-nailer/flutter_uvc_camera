@@ -16,11 +16,14 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 class FlutterUVCCameraPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     private val methodChannelName = "flutter_uvc_camera/channel"
     private val videoStreamChannelName = "flutter_uvc_camera/video_stream"
+    private val previewStreamChannelName = "flutter_uvc_camera/preview_stream"
     private val viewName = "uvc_camera_view"
-    
+
     private var methodChannel: MethodChannel? = null
     private var videoStreamChannel: EventChannel? = null
+    private var previewStreamChannel: EventChannel? = null
     private var videoStreamHandler = VideoStreamHandler()
+    private var previewStreamHandler = PreviewStreamHandler()
     
     private lateinit var mUVCCameraViewFactory: UVCCameraViewFactory
     private var activity: Activity? = null
@@ -32,22 +35,29 @@ class FlutterUVCCameraPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         // 设置Method Channel
         methodChannel = MethodChannel(flutterPluginBinding.binaryMessenger, methodChannelName)
         methodChannel!!.setMethodCallHandler(this)
-        
+
         // 设置Video Stream EventChannel
         videoStreamChannel = EventChannel(flutterPluginBinding.binaryMessenger, videoStreamChannelName)
         videoStreamChannel!!.setStreamHandler(videoStreamHandler)
-        
+
+        // 设置Preview Stream EventChannel
+        previewStreamChannel = EventChannel(flutterPluginBinding.binaryMessenger, previewStreamChannelName)
+        previewStreamChannel!!.setStreamHandler(previewStreamHandler)
+
         // 初始化视图工厂
-        mUVCCameraViewFactory = UVCCameraViewFactory(this, methodChannel!!, videoStreamHandler)
+        mUVCCameraViewFactory = UVCCameraViewFactory(this, methodChannel!!, videoStreamHandler, previewStreamHandler)
         flutterPluginBinding.platformViewRegistry.registerViewFactory(viewName, mUVCCameraViewFactory)
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         methodChannel?.setMethodCallHandler(null)
         methodChannel = null
-        
+
         videoStreamChannel?.setStreamHandler(null)
         videoStreamChannel = null
+
+        previewStreamChannel?.setStreamHandler(null)
+        previewStreamChannel = null
     }
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
@@ -136,6 +146,18 @@ class FlutterUVCCameraPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 mUVCCameraViewFactory.captureStreamStop()
                 result.success(null)
             }
+
+            "capturePreviewStreamStart" -> {
+                mUVCCameraViewFactory.capturePreviewStreamStart()
+                // previewStreamHandler.startPreviewStream()
+                result.success(null)
+            }
+
+            "capturePreviewStreamStop" -> {
+                mUVCCameraViewFactory.capturePreviewStreamStop()
+                // previewStreamHandler.stopPreviewStream()
+                result.success(null)
+            }
             
             // Stream control
             "setVideoFrameRateLimit" -> {
@@ -151,6 +173,22 @@ class FlutterUVCCameraPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             "setVideoFrameSizeLimit" -> {
                 val size = call.argument<Int>("size") ?: 0
                 videoStreamHandler.frameSizeLimit = size
+                result.success(null)
+            }
+
+            "setPreviewFrameRateLimit" -> {
+                val fps = call.argument<Int>("fps") ?: 30
+                previewStreamHandler.frameRateLimit = fps
+                result.success(null)
+            }
+
+            "getPreviewFrameRateLimit" -> {
+                result.success(previewStreamHandler.frameRateLimit)
+            }
+
+            "setPreviewFrameSizeLimit" -> {
+                val size = call.argument<Int>("size") ?: 0
+                previewStreamHandler.frameSizeLimit = size
                 result.success(null)
             }
 

@@ -30,6 +30,7 @@ import com.jiangdg.ausbc.callback.ICameraStateCallBack
 import com.jiangdg.ausbc.callback.ICaptureCallBack
 import com.jiangdg.ausbc.callback.IDeviceConnectCallBack
 import com.jiangdg.ausbc.callback.IEncodeDataCallBack
+import com.jiangdg.ausbc.callback.IPreviewDataCallBack
 import com.jiangdg.ausbc.camera.bean.CameraRequest
 import com.jiangdg.ausbc.render.env.RotateType
 import com.jiangdg.ausbc.utils.Logger
@@ -51,6 +52,7 @@ internal class UVCCameraView(
     private val mChannel: MethodChannel,
     private val params: Any?,
     private val videoStreamHandler: VideoStreamHandler,
+    private val previewStreamHandler: PreviewStreamHandler,
     private val recordingTimerManager: RecordingTimerManager
 ) : PlatformView, PermissionResultListener, ICameraStateCallBack {
     private var mViewBinding = ActivityMainBinding.inflate(LayoutInflater.from(mContext))
@@ -459,11 +461,18 @@ internal class UVCCameraView(
         }.apply {
             getCurrentCamera()?.openCamera(this, configManager.buildCameraRequest())
             getCurrentCamera()?.setCameraStateCallBack(this@UVCCameraView)
+
+            // プレビューデータコールバックを登録
+            getCurrentCamera()?.addPreviewDataCallBack(previewStreamHandler.previewDataCallback)
         }
     }
 
     fun closeCamera() {
         stateManager.updateState(CameraStateManager.CameraState.CLOSING)
+
+        // プレビューデータコールバックを削除
+        getCurrentCamera()?.removePreviewDataCallBack(previewStreamHandler.previewDataCallback)
+
         getCurrentCamera()?.closeCamera()
     }
 
@@ -579,6 +588,24 @@ internal class UVCCameraView(
         fpsReportHandler.removeCallbacks(fpsReportRunnable)
     }
 
+    fun capturePreviewStreamStart() {
+        if (!stateManager.checkStateForOperation("stream")) {
+            Logger.e(TAG, "Camera not ready for preview streaming. Current state: ${stateManager.getCurrentState()}")
+            callFlutter("Camera not ready for preview streaming")
+            return
+        }
+
+        setPreviewDataCallback()
+
+        Logger.i(TAG, "Starting preview stream")
+        previewStreamHandler.startPreviewStream()
+    }
+
+    fun capturePreviewStreamStop() {
+        Logger.i(TAG, "Stopping preview stream")
+        previewStreamHandler.stopPreviewStream()
+    }
+
     private fun setEncodeDataCallBack() {
         getCurrentCamera()?.setEncodeDataCallBack(object : IEncodeDataCallBack {
             override fun onEncodeData(
@@ -597,6 +624,10 @@ internal class UVCCameraView(
                 )
             }
         })
+    }
+
+    private fun setPreviewDataCallback() {
+        getCurrentCamera()?.addPreviewDataCallBack(previewStreamHandler.previewDataCallback)
     }
 
     private fun isCameraOpened() = stateManager.isOpened()

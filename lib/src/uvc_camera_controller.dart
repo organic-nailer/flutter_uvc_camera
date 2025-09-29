@@ -11,6 +11,8 @@ class UVCCameraController {
   static const String _methodChannelName = "flutter_uvc_camera/channel";
   static const String _videoStreamChannelName =
       "flutter_uvc_camera/video_stream";
+  static const String _previewStreamChannelName =
+      "flutter_uvc_camera/preview_stream";
 
   UVCCameraState _cameraState = UVCCameraState.closed;
 
@@ -47,11 +49,17 @@ class UVCCameraController {
   /// Audio frame callback
   Function(VideoFrameEvent)? onAudioFrameCallback;
 
+  /// Preview frame callback (NV21形式)
+  Function(PreviewFrameEvent)? onPreviewFrameCallback;
+
   /// Recording time update callback
   Function(RecordingTimeEvent)? onRecordingTimeCallback;
 
   /// State change callback (stream started/stopped)
   Function(StateEvent)? onStreamStateCallback;
+
+  /// Preview stream state callback
+  Function(StateEvent)? onPreviewStreamStateCallback;
 
   // 当前录制时间，单位毫秒
   int _currentRecordingTimeMs = 0;
@@ -78,7 +86,9 @@ class UVCCameraController {
 
   MethodChannel? _methodChannel;
   EventChannel? _videoStreamChannel;
+  EventChannel? _previewStreamChannel;
   StreamSubscription? _videoStreamSubscription;
+  StreamSubscription? _previewStreamSubscription;
 
   /// Initialize controller
   UVCCameraController() {
@@ -86,6 +96,7 @@ class UVCCameraController {
     _methodChannel?.setMethodCallHandler(_methodChannelHandler);
 
     _initVideoStreamChannel();
+    _initPreviewStreamChannel();
 
     debugPrint("------> UVCCameraController init");
   }
@@ -96,6 +107,14 @@ class UVCCameraController {
     _videoStreamSubscription = _videoStreamChannel
         ?.receiveBroadcastStream()
         .listen(_handleVideoStreamEvent, onError: _handleVideoStreamError);
+  }
+
+  /// 初始化预览流通道
+  void _initPreviewStreamChannel() {
+    _previewStreamChannel = const EventChannel(_previewStreamChannelName);
+    _previewStreamSubscription = _previewStreamChannel
+        ?.receiveBroadcastStream()
+        .listen(_handlePreviewStreamEvent, onError: _handlePreviewStreamError);
   }
 
   /// 处理视频流事件
@@ -150,6 +169,42 @@ class UVCCameraController {
     }
   }
 
+  /// 处理预览流事件
+  void _handlePreviewStreamEvent(dynamic event) {
+    if (event == null) return;
+
+    try {
+      final streamEvent = VideoStreamEvent.fromMap(event);
+
+      // Use microtask to avoid blocking the main thread
+      Future.microtask(() {
+        try {
+          if (streamEvent is PreviewFrameEvent) {
+            if (onPreviewFrameCallback != null) {
+              onPreviewFrameCallback!(streamEvent);
+            }
+          } else if (streamEvent is StateEvent) {
+            if (streamEvent.state == 'PREVIEW_STREAM_STARTED' ||
+                streamEvent.state == 'PREVIEW_STREAM_STOPPED') {
+              if (onPreviewStreamStateCallback != null) {
+                onPreviewStreamStateCallback!(streamEvent);
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint("Error processing preview event in microtask: $e");
+        }
+      });
+    } catch (e) {
+      debugPrint("Error parsing preview stream event: $e");
+    }
+  }
+
+  /// 处理预览流错误
+  void _handlePreviewStreamError(dynamic error) {
+    debugPrint("Preview stream error: $error");
+  }
+
   /// 自动降低帧率以应对性能问题
   void _reduceFrameRate() async {
     try {
@@ -173,6 +228,9 @@ class UVCCameraController {
   void dispose() {
     _videoStreamSubscription?.cancel();
     _videoStreamSubscription = null;
+
+    _previewStreamSubscription?.cancel();
+    _previewStreamSubscription = null;
 
     _methodChannel?.setMethodCallHandler(null);
     _methodChannel = null;
@@ -238,6 +296,18 @@ class UVCCameraController {
     _methodChannel?.invokeMethod('captureStreamStop');
   }
 
+  /// Start preview stream (NV21)
+  void capturePreviewStreamStart() {
+    debugPrint("Starting preview stream");
+    _methodChannel?.invokeMethod('capturePreviewStreamStart');
+  }
+
+  /// Stop preview stream (NV21)
+  void capturePreviewStreamStop() {
+    debugPrint("Stopping preview stream");
+    _methodChannel?.invokeMethod('capturePreviewStreamStop');
+  }
+
   /// Start camera preview
   Future<void> startCamera() async {
     await _methodChannel?.invokeMethod('startCamera');
@@ -255,6 +325,20 @@ class UVCCameraController {
   Future<void> setVideoFrameSizeLimit(int maxBytes) async {
     await _methodChannel
         ?.invokeMethod('setVideoFrameSizeLimit', {'size': maxBytes});
+  }
+
+  /// 设置预览帧率限制
+  Future<void> setPreviewFrameRateLimit(int fps) async {
+    if (fps < 1 || fps > 60) {
+      throw ArgumentError('帧率必须在1-60之间');
+    }
+    await _methodChannel?.invokeMethod('setPreviewFrameRateLimit', {'fps': fps});
+  }
+
+  /// 设置预览帧大小限制
+  Future<void> setPreviewFrameSizeLimit(int maxBytes) async {
+    await _methodChannel
+        ?.invokeMethod('setPreviewFrameSizeLimit', {'size': maxBytes});
   }
 
   /// Get all available preview sizes

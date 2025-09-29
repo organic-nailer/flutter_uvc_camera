@@ -13,6 +13,8 @@ abstract class VideoStreamEvent {
       case 'H264':
       case 'AAC':
         return VideoFrameEvent.fromMap(map);
+      case 'NV21':
+        return PreviewFrameEvent.fromMap(map);
       case 'STATE':
         return StateEvent.fromMap(map);
       default:
@@ -43,6 +45,33 @@ class VideoFrameEvent extends VideoStreamEvent {
       timestamp: map['timestamp'] as int,
       size: map['size'] as int,
       fps: map['fps'] as int,
+    );
+  }
+}
+
+/// プレビューフレーム事件 (NV21形式)
+class PreviewFrameEvent extends VideoStreamEvent {
+  final Uint8List data;
+  final int width;
+  final int height;
+  final int timestamp;
+  final int size;
+
+  PreviewFrameEvent({
+    required this.data,
+    required this.width,
+    required this.height,
+    required this.timestamp,
+    required this.size,
+  }) : super('NV21');
+
+  factory PreviewFrameEvent.fromMap(Map<dynamic, dynamic> map) {
+    return PreviewFrameEvent(
+      data: map['data'] as Uint8List,
+      width: map['width'] as int,
+      height: map['height'] as int,
+      timestamp: map['timestamp'] as int,
+      size: map['size'] as int,
     );
   }
 }

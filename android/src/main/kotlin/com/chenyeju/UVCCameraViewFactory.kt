@@ -10,13 +10,14 @@ import io.flutter.plugin.platform.PlatformViewFactory
 class UVCCameraViewFactory(
     private val plugin: FlutterUVCCameraPlugin,
     private var channel: MethodChannel,
-    private val videoStreamHandler: VideoStreamHandler
+    private val videoStreamHandler: VideoStreamHandler,
+    private val previewStreamHandler: PreviewStreamHandler
 ) : PlatformViewFactory(StandardMessageCodec.INSTANCE) {
     private lateinit var cameraView: UVCCameraView
     private val recordingTimerManager = RecordingTimerManager(videoStreamHandler)
 
     override fun create(context: Context, viewId: Int, args: Any?): PlatformView {
-        cameraView = UVCCameraView(context, this.channel, args, videoStreamHandler, recordingTimerManager)
+        cameraView = UVCCameraView(context, this.channel, args, videoStreamHandler, previewStreamHandler, recordingTimerManager)
         plugin.setPermissionResultListener(cameraView)
         return cameraView
     }
@@ -43,6 +44,14 @@ class UVCCameraViewFactory(
     
     fun captureStreamStop() {
         cameraView.captureStreamStop()
+    }
+
+    fun capturePreviewStreamStart() {
+        cameraView.capturePreviewStreamStart()
+    }
+
+    fun capturePreviewStreamStop() {
+        cameraView.capturePreviewStreamStop()
     }
 
     fun getAllPreviewSizes() = cameraView.getAllPreviewSizes()

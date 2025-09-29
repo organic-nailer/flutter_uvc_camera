@@ -86,7 +86,7 @@ class CameraConfigManager {
         return CameraRequest.Builder()
             .setPreviewWidth(previewWidth)
             .setPreviewHeight(previewHeight)
-            .setRenderMode(CameraRequest.RenderMode.OPENGL)
+            .setRenderMode(CameraRequest.RenderMode.NORMAL) // for nv21
             .setDefaultRotateType(RotateType.ANGLE_0)
             .setAudioSource(CameraRequest.AudioSource.SOURCE_SYS_MIC)
             .setAspectRatioShow(aspectRatioShow)
